@@ -10,10 +10,20 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-func Success(data interface{}) SuccessResponse {
-	return SuccessResponse{
-		Status: "success",
-		Data:   data,
+func Success(args ...interface{}) map[string]interface{} {
+	switch len(args) {
+	case 1:
+		return map[string]interface{}{
+			"status": "success",
+			"data":   args[0],
+		}
+	case 2:
+		return map[string]interface{}{
+			"message": args[0],
+			"data":    args[1],
+		}
+	default:
+		return map[string]interface{}{"status": "success"}
 	}
 }
 
