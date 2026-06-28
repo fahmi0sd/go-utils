@@ -33,3 +33,11 @@ func Error(message string) ErrorResponse {
 		Message: message,
 	}
 }
+
+func SuccessMessage(message string, data interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"status":  "success",
+		"message": message,
+		"data":    data,
+	}
+}
