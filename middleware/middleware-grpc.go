@@ -1,11 +1,3 @@
-// Salin file ini ke repo go-utils sebagai: middleware/grpc.go
-// Lalu di repo go-utils jalankan:
-//   go get google.golang.org/grpc@latest
-//   go mod tidy
-//
-// Interceptor ini memakai logika validasi JWT yang sama dengan JWTMiddleware
-// (HS256 + cek expiration), tapi untuk gRPC (bukan Echo).
-
 package middleware
 
 import (
@@ -25,8 +17,12 @@ type contextKey string
 
 const ContextUserIDKey contextKey = "id"
 
-func JWTUnaryInterceptor(jwtSign string) grpc.UnaryServerInterceptor {
+func JWTUnaryInterceptor(jwtSign string, publicMethods ...string) grpc.UnaryServerInterceptor {
+	public := toSet(publicMethods)
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		if isPublic(info.FullMethod, public) {
+			return handler(ctx, req)
+		}
 		newCtx, err := authorizeGRPC(ctx, jwtSign)
 		if err != nil {
 			return nil, err
@@ -35,13 +31,33 @@ func JWTUnaryInterceptor(jwtSign string) grpc.UnaryServerInterceptor {
 	}
 }
 
-func JWTStreamInterceptor(jwtSign string) grpc.StreamServerInterceptor {
+func JWTStreamInterceptor(jwtSign string, publicMethods ...string) grpc.StreamServerInterceptor {
+	public := toSet(publicMethods)
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		if isPublic(info.FullMethod, public) {
+			return handler(srv, ss)
+		}
 		if _, err := authorizeGRPC(ss.Context(), jwtSign); err != nil {
 			return err
 		}
 		return handler(srv, ss)
 	}
+}
+
+func toSet(methods []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(methods))
+	for _, m := range methods {
+		set[m] = struct{}{}
+	}
+	return set
+}
+
+func isPublic(fullMethod string, public map[string]struct{}) bool {
+	if strings.HasPrefix(fullMethod, "/grpc.reflection.") {
+		return true
+	}
+	_, ok := public[fullMethod]
+	return ok
 }
 
 func authorizeGRPC(ctx context.Context, jwtSign string) (context.Context, error) {
